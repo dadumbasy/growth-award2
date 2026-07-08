@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>1학기 학급 성장상</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FAFAFA;min-height:100vh;}
+input,select,textarea,button{font-family:inherit;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ── 데이터 ────────────────────────────────────────────────────
+const CLASS_CONFIG = {
+  "1-1":{ label:"1학년 1반", password:"1111", students:["가오진희","강하은","김민교","김서윤","김지아","김채원","박새봄","박소율","박소현","서연우","소지유","송율아","신지율","유아린","유은재","이주아","정예서","주아인","최영혜","최예원","최예은","최윤이","한서연","신상혁"] },
+  "1-2":{ label:"1학년 2반", password:"2222", students:["강혜림","곽서연","김가율","김민하","김주이","나연우","남혜수","문정원","박제이","박하은","서예원","엄서윤","유서연","유아현","이도윤","이예린","이유리","이자영","이지안","이태희","장하엘","정수연","조수하"] },
+  "1-3":{ label:"1학년 3반", password:"3333", students:["고우리","김가람","김시우","김예린","김진도","김차희","박수민","박예은","백가림","백다솜","시아현","신다임","오가윤","오서윤","이린하","이서연","이시율","이하정","이한송이","조유은","최지현","최진영","하윤설"] },
+  "1-4":{ label:"1학년 4반", password:"4444", students:["고은이","김민지","김승연","김예나","김지혜","류아림","문정은","문채원","박주은","반은희","방소은","신민하","신주영","안서현","유고은","이민주","이민채","이채빈","정도연","정수연","조윤서","최린아","양아린"] },
+};
+const FIELDS = [
+  { id:"study",     num:"01", title:"학습면", sub:"꾸준한 노력과 눈에 띄는 학습 태도의 성장을 보여준 친구", hint:"예) 3월부터 지금까지 가장 꾸준히 공부하는 자세를 유지하며 열심히 한 것 같다.", accent:"#6366F1" },
+  { id:"relation",  num:"02", title:"관계면", sub:"친근하게 대하고 갈등을 해결하며 두루 인정받는 친구",      hint:"예) 모든 친구들에게 친근하게 대하고, 갈등이 있어도 적극적으로 조정하고 해결하려 노력한다.", accent:"#0EA5E9" },
+  { id:"service",   num:"03", title:"봉사면", sub:"학급 전체의 환경과 이익을 위해 앞장서 실천한 친구",       hint:"예) 나보다 전체의 환경 개선, 이익 등에 보탬이 되는 일에 나서서 열심히 실천한다.", accent:"#10B981" },
+  { id:"character", num:"04", title:"인성면", sub:"티 내지 않고 배려하며 마음을 헤아려주는 따뜻한 친구",    hint:"예) 티내지 않으면서 다른 친구를 배려하고 마음을 잘 헤아려주어 많은 친구들이 인정한다.", accent:"#F59E0B" },
+];
+const STORAGE_KEY = "growth_final_";
+const MAX = 150;
+
+// ── 로컬스토리지 ───────────────────────────────────────────────
+function loadSubs(cid){ try{ const r=localStorage.getItem(STORAGE_KEY+cid); return r?JSON.parse(r):[]; }catch{ return []; } }
+function saveSub(cid,data){ try{ const ex=loadSubs(cid); ex.push({...data,at:new Date().toLocaleString("ko-KR")}); localStorage.setItem(STORAGE_KEY+cid,JSON.stringify(ex)); return true; }catch{ return false; } }
+function resetSubs(cid){ localStorage.removeItem(STORAGE_KEY+cid); }
+
+// ── 엑셀 ───────────────────────────────────────────────────────
+function downloadXLSX(cid){
+  const cfg=CLASS_CONFIG[cid]; const subs=loadSubs(cid);
+  const wb=XLSX.utils.book_new();
+  const byName=[["작성자","제출시간","분야","추천 친구","추천 이유"]];
+  subs.forEach(s=>FIELDS.forEach(f=>{ const d=s.fields[f.id]; if(d&&(d.who||d.why)) byName.push([s.name,s.at,f.title,d.who||"",d.why||""]); }));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(byName),"이름별");
+  FIELDS.forEach(f=>{ const rows=[["추천받은 친구","추천한 학생","추천 이유"]]; subs.forEach(s=>{ const d=s.fields[f.id]; if(d&&(d.who||d.why)) rows.push([d.who||"",s.name,d.why||""]); }); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),f.title); });
+  const tally=Object.fromEntries(FIELDS.map(f=>[f.id,{}]));
+  subs.forEach(s=>FIELDS.forEach(f=>{ const n=s.fields[f.id]?.who?.trim(); if(n) tally[f.id][n]=(tally[f.id][n]||0)+1; }));
+  const total={};
+  FIELDS.forEach(f=>Object.entries(tally[f.id]).forEach(([n,c])=>{ total[n]=(total[n]||0)+c; }));
+  const stat=[["순위","이름","총합",...FIELDS.map(f=>f.title)]];
+  Object.entries(total).sort((a,b)=>b[1]-a[1]).forEach(([n,t],i)=>stat.push([i+1,n,t,...FIELDS.map(f=>tally[f.id][n]||0)]));
+  stat.push([]); stat.push(["제출현황",`${subs.length}명 / ${cfg.students.length}명`]);
+  const notSub=cfg.students.filter(s=>!subs.find(sub=>sub.name===s));
+  if(notSub.length) stat.push(["미제출",notSub.join(", ")]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(stat),"통계");
+  XLSX.writeFile(wb,`${cfg.label}_성장상.xlsx`);
+}
+
+// ── 상태 ───────────────────────────────────────────────────────
+let state = { screen:"home", classId:"", mode:"", pw:"", pwErr:false, name:"", confirmed:false, fields:{}, toastMsg:null, alertMsg:null, adminTab:"stats", adminSel:null, confirmReset:false, exportText:null };
+function setState(patch){ state={...state,...patch}; render(); }
+
+// ── 렌더 헬퍼 ─────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function el(tag,attrs,children){
+  const e=document.createElement(tag);
+  Object.entries(attrs||{}).forEach(([k,v])=>{ if(k==="style"&&typeof v==="object") Object.assign(e.style,v); else if(k.startsWith("on")) e.addEventListener(k.slice(2).toLowerCase(),v); else e.setAttribute(k,v); });
+  (children||[]).forEach(c=>{ if(c===null||c===undefined) return; e.appendChild(typeof c==="string"?document.createTextNode(c):c); });
+  return e;
+}
+function emptyF(){ return Object.fromEntries(FIELDS.map(f=>[f.id,{who:"",why:""}])); }
+
+// ── Toast ──────────────────────────────────────────────────────
+function showToast(msg){
+  const t=document.createElement("div");
+  Object.assign(t.style,{position:"fixed",bottom:"32px",left:"50%",transform:"translateX(-50%) translateY(10px)",opacity:"0",transition:"all 0.3s",zIndex:"999",background:"#09090B",color:"#fff",padding:"14px 28px",borderRadius:"999px",fontSize:"14px",fontWeight:"600",whiteSpace:"nowrap",boxShadow:"0 8px 32px rgba(0,0,0,0.22)"});
+  t.textContent=msg; document.body.appendChild(t);
+  setTimeout(()=>{t.style.opacity="1";t.style.transform="translateX(-50%) translateY(0)";},10);
+  setTimeout(()=>{t.style.opacity="0"; setTimeout(()=>t.remove(),300);},2600);
+}
+
+// ── 메인 렌더 ─────────────────────────────────────────────────
+function render(){
+  const app=$("app"); app.innerHTML="";
+  const s=state;
+  if(s.screen==="home")        app.appendChild(renderHome());
+  else if(s.screen==="student") app.appendChild(renderStudent());
+  else if(s.screen==="teacher") app.appendChild(renderTeacher());
+  else if(s.screen==="adminLogin") app.appendChild(renderAdminLogin());
+  else if(s.screen==="admin")  app.appendChild(renderAdmin());
+}
+
+// ── 홈 ────────────────────────────────────────────────────────
+function renderHome(){
+  const wrap=el("div",{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 20px"}});
+  const inner=el("div",{style:{width:"100%",maxWidth:"360px"}});
+  const banner=el("div",{style:{background:"linear-gradient(135deg,#09090B 0%,#3F3F46 60%,#6366F1 100%)",borderRadius:"20px",padding:"32px 28px",marginBottom:"28px"}});
+  banner.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"rgba(255,255,255,0.45)",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"10px"}},["1학기 학급 성장상"]));
+  banner.appendChild(el("h1",{style:{fontSize:"28px",fontWeight:"800",color:"#fff",lineHeight:"1.2",letterSpacing:"-0.03em",marginBottom:"10px"}},["Growth\nAward".replace("\n","\n")]));
+  const h1t=banner.querySelector("h1"); h1t.innerHTML="Growth<br>Award";
+  banner.appendChild(el("p",{style:{fontSize:"13px",color:"rgba(255,255,255,0.55)",lineHeight:"1.5"}},["우리 반을 빛낸 주인공을 추천해 주세요"]));
+  inner.appendChild(banner);
+  inner.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"}},["반 선택"]));
+  const grid=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"20px"}});
+  Object.entries(CLASS_CONFIG).forEach(([id,cfg])=>{
+    const btn=el("button",{style:{padding:"18px 14px",borderRadius:"14px",fontWeight:"700",fontSize:"14px",color:"#09090B",background:"#fff",border:"1px solid #E4E4E7",cursor:"pointer",transition:"all 0.2s",textAlign:"left",boxShadow:"0 1px 3px rgba(0,0,0,0.05)"},onMouseenter:e=>{e.target.style.borderColor="#09090B";},onMouseleave:e=>{e.target.style.borderColor="#E4E4E7";},onClick:()=>setState({screen:"student",classId:id,name:"",confirmed:false,fields:emptyF()})},[cfg.label]);
+    grid.appendChild(btn);
+  });
+  inner.appendChild(grid);
+  const teacherBtn=el("button",{style:{width:"100%",padding:"14px",background:"transparent",color:"#A1A1AA",border:"1.5px solid #E4E4E7",borderRadius:"12px",fontWeight:"600",fontSize:"13px",cursor:"pointer",transition:"all 0.2s"},onMouseenter:e=>{e.target.style.borderColor="#09090B";e.target.style.color="#09090B";},onMouseleave:e=>{e.target.style.borderColor="#E4E4E7";e.target.style.color="#A1A1AA";},onClick:()=>setState({screen:"teacher"})},["담임 선생님이신가요? →"]);
+  inner.appendChild(teacherBtn);
+  inner.appendChild(el("p",{style:{fontSize:"12px",color:"#D4D4D8",textAlign:"center",marginTop:"20px"}},["학생은 다른 학생의 내용을 볼 수 없습니다."]));
+  wrap.appendChild(inner); return wrap;
+}
+
+// ── 교사 반 선택 ───────────────────────────────────────────────
+function renderTeacher(){
+  const wrap=el("div",{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 20px"}});
+  const inner=el("div",{style:{width:"100%",maxWidth:"360px"}});
+  inner.appendChild(el("button",{style:{background:"none",border:"none",cursor:"pointer",color:"#A1A1AA",fontSize:"13px",marginBottom:"32px",padding:"0"},onClick:()=>setState({screen:"home"})},["← 뒤로"]));
+  const banner=el("div",{style:{background:"linear-gradient(135deg,#3F3F46 0%,#09090B 100%)",borderRadius:"20px",padding:"28px",marginBottom:"28px"}});
+  banner.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"rgba(255,255,255,0.45)",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px"}},["담임 선생님 전용"]));
+  banner.appendChild(el("h2",{style:{fontSize:"22px",fontWeight:"800",color:"#fff",letterSpacing:"-0.02em",marginBottom:"6px"}},["관리자 입장"]));
+  banner.appendChild(el("p",{style:{fontSize:"13px",color:"rgba(255,255,255,0.5)"}},["담당 반을 선택하세요"]));
+  inner.appendChild(banner);
+  inner.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"}},["반 선택"]));
+  const grid=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}});
+  Object.entries(CLASS_CONFIG).forEach(([id,cfg])=>{
+    const btn=el("button",{style:{padding:"18px 14px",borderRadius:"14px",fontWeight:"700",fontSize:"14px",color:"#fff",background:"#09090B",border:"1px solid #27272A",cursor:"pointer",transition:"all 0.2s",textAlign:"left"},onMouseenter:e=>e.target.style.background="#27272A",onMouseleave:e=>e.target.style.background="#09090B",onClick:()=>setState({screen:"adminLogin",classId:id,pw:"",pwErr:false})},[cfg.label]);
+    grid.appendChild(btn);
+  });
+  inner.appendChild(grid); wrap.appendChild(inner); return wrap;
+}
+
+// ── 관리자 로그인 ──────────────────────────────────────────────
+function renderAdminLogin(){
+  const s=state;
+  const wrap=el("div",{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 20px"}});
+  const inner=el("div",{style:{width:"100%",maxWidth:"320px"}});
+  inner.appendChild(el("button",{style:{background:"none",border:"none",cursor:"pointer",color:"#A1A1AA",fontSize:"13px",marginBottom:"32px",padding:"0"},onClick:()=>setState({screen:"teacher"})},["← 뒤로"]));
+  inner.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"6px"}},["관리자 로그인"]));
+  inner.appendChild(el("h2",{style:{fontSize:"24px",fontWeight:"800",color:"#09090B",letterSpacing:"-0.02em",marginBottom:"32px"}},[CLASS_CONFIG[s.classId].label]));
+  inner.appendChild(el("label",{style:{display:"block",fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}},["비밀번호"]));
+  const inp=document.createElement("input");
+  inp.type="password"; inp.placeholder="••••";
+  Object.assign(inp.style,{width:"100%",border:"none",borderBottom:`2px solid ${s.pwErr?"#EF4444":"#E4E4E7"}`,background:"transparent",padding:"10px 0",fontSize:"22px",letterSpacing:"0.3em",color:"#09090B",outline:"none",transition:"border-color 0.2s",marginBottom:"6px",boxSizing:"border-box"});
+  inp.addEventListener("focus",e=>e.target.style.borderBottomColor="#09090B");
+  inp.addEventListener("blur",e=>e.target.style.borderBottomColor=s.pwErr?"#EF4444":"#E4E4E7");
+  inp.addEventListener("input",e=>{ state.pw=e.target.value; state.pwErr=false; });
+  inp.addEventListener("keydown",e=>{ if(e.key==="Enter") tryLogin(); });
+  inner.appendChild(inp);
+  // 렌더 후 포커스
+  setTimeout(()=>{ inp.focus(); inp.setSelectionRange(inp.value.length,inp.value.length); },50);
+  if(s.pwErr) inner.appendChild(el("p",{style:{fontSize:"12px",color:"#EF4444",marginBottom:"4px"}},["비밀번호가 올바르지 않습니다."]));
+  const btn=el("button",{style:{width:"100%",padding:"15px",background:"#09090B",color:"#fff",border:"none",borderRadius:"12px",fontWeight:"700",fontSize:"15px",cursor:"pointer",marginTop:"28px"},onMouseenter:e=>e.target.style.background="#27272A",onMouseleave:e=>e.target.style.background="#09090B",onClick:tryLogin},["입장"]);
+  inner.appendChild(btn); wrap.appendChild(inner); return wrap;
+}
+function tryLogin(){ if(state.pw===CLASS_CONFIG[state.classId].password) setState({screen:"admin",pwErr:false,adminTab:"stats",adminSel:null}); else setState({pwErr:true}); }
+
+// ── 학생 폼 ────────────────────────────────────────────────────
+function renderStudent(){
+  const s=state; const cfg=CLASS_CONFIG[s.classId];
+  const nominees=s.confirmed?cfg.students.filter(st=>st!==s.name):cfg.students;
+  const page=el("div",{style:{minHeight:"100vh",background:"#FAFAFA"}});
+
+  // 헤더
+  const hdr=el("div",{style:{position:"sticky",top:"0",zIndex:"20",background:"rgba(250,250,250,0.92)",backdropFilter:"blur(12px)",borderBottom:"1px solid #E4E4E7"}});
+  const hdrIn=el("div",{style:{display:"flex",alignItems:"center",maxWidth:"480px",margin:"0 auto",height:"52px",padding:"0 20px",gap:"16px"}});
+  hdrIn.appendChild(el("button",{style:{background:"none",border:"none",cursor:"pointer",color:"#09090B",fontSize:"20px",padding:"4px"},onClick:()=>setState({screen:"home",name:"",confirmed:false,fields:emptyF()})},["←"]));
+  hdrIn.appendChild(el("span",{style:{fontSize:"13px",fontWeight:"700",color:"#09090B"}},[cfg.label]));
+  const filled=FIELDS.filter(f=>s.fields[f.id]?.who||s.fields[f.id]?.why).length;
+  if(s.confirmed&&filled>0) hdrIn.appendChild(el("span",{style:{marginLeft:"auto",fontSize:"12px",color:"#A1A1AA"}},[`${filled}/4 작성 완료`]));
+  hdr.appendChild(hdrIn); page.appendChild(hdr);
+
+  const body=el("div",{style:{maxWidth:"480px",margin:"0 auto",padding:"32px 20px 72px"}});
+
+  // 타이틀
+  const titleBox=el("div",{style:{marginBottom:"32px"}});
+  titleBox.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px"}},["1학기 학급 성장상"]));
+  const h1=el("h1",{style:{fontSize:"26px",fontWeight:"800",color:"#09090B",lineHeight:"1.25",letterSpacing:"-0.03em",marginBottom:"10px"}});
+  h1.innerHTML="우리 반을 빛낸<br>주인공을 추천하세요";
+  titleBox.appendChild(h1);
+  titleBox.appendChild(el("p",{style:{fontSize:"13px",color:"#71717A",lineHeight:"1.6"}},["원하는 분야만 1개 이상 작성하면 됩니다. 자기 자신은 추천할 수 없어요."]));
+  body.appendChild(titleBox);
+
+  // 작성자 카드
+  const writerCard=el("div",{style:{background:"#fff",borderRadius:"16px",boxShadow:"0 1px 4px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.05)",overflow:"hidden",marginBottom:"20px"}});
+  const writerBanner=el("div",{style:{background:"linear-gradient(135deg,#09090B 0%,#3F3F46 100%)",padding:"18px 20px"}});
+  writerBanner.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"rgba(255,255,255,0.5)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"2px"}},["작성자"]));
+  writerBanner.appendChild(el("p",{style:{fontSize:"13px",color:"rgba(255,255,255,0.7)"}},["본인의 이름을 선택해 주세요"]));
+  writerCard.appendChild(writerBanner);
+  const writerBody=el("div",{style:{padding:"18px 20px"}});
+  const sel=el("select",{style:{width:"100%",border:"none",borderBottom:"2px solid #E4E4E7",background:"transparent",padding:"8px 0",fontSize:"16px",color:s.name?"#09090B":"#A1A1AA",outline:"none",appearance:"none",transition:"border-color 0.2s",marginBottom:"16px"},onFocus:e=>e.target.style.borderBottomColor="#09090B",onBlur:e=>e.target.style.borderBottomColor="#E4E4E7",onChange:e=>setState({name:e.target.value,confirmed:false,fields:emptyF()})});
+  if(s.confirmed) sel.disabled=true;
+  sel.appendChild(el("option",{value:""},["이름을 선택하세요"]));
+  cfg.students.forEach(st=>{ const o=el("option",{value:st},[st]); if(st===s.name) o.selected=true; sel.appendChild(o); });
+  writerBody.appendChild(sel);
+  if(!s.confirmed){
+    const confirmBtn=el("button",{style:{width:"100%",padding:"14px",background:"#09090B",color:"#fff",border:"none",borderRadius:"12px",fontWeight:"700",fontSize:"15px",cursor:"pointer"},onMouseenter:e=>e.target.style.background="#27272A",onMouseleave:e=>e.target.style.background="#09090B",onClick:()=>{ if(!s.name){showAlert("작성자 이름을 선택해 주세요.");return;} setState({confirmed:true}); }},["확인"]);
+    writerBody.appendChild(confirmBtn);
+  } else {
+    const row=el("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"#F4F4F5",borderRadius:"10px"}});
+    row.appendChild(el("span",{style:{fontSize:"14px",color:"#09090B",fontWeight:"600"}},[`${s.name} 학생으로 작성 중`]));
+    row.appendChild(el("button",{style:{background:"none",border:"none",cursor:"pointer",fontSize:"12px",color:"#A1A1AA",textDecoration:"underline"},onClick:()=>setState({confirmed:false,fields:emptyF()})},["변경"]));
+    writerBody.appendChild(row);
+  }
+  writerCard.appendChild(writerBody); body.appendChild(writerCard);
+
+  // 분야 카드들
+  if(s.confirmed){
+    FIELDS.forEach(f=>{
+      const d=s.fields[f.id]||{who:"",why:""};
+      const card=el("div",{style:{background:"#fff",borderRadius:"16px",boxShadow:"0 1px 4px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.05)",overflow:"hidden",marginBottom:"12px"}});
+      const cardHdr=el("div",{style:{background:`linear-gradient(135deg,${f.accent}22,${f.accent}0A)`,borderBottom:`2px solid ${f.accent}33`,padding:"18px 20px"}});
+      const cardHdrTop=el("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"4px"}});
+      const hdrLeft=el("div",{style:{display:"flex",alignItems:"baseline",gap:"10px"}});
+      hdrLeft.appendChild(el("span",{style:{fontSize:"11px",fontWeight:"800",color:f.accent,letterSpacing:"0.12em"}},[f.num]));
+      hdrLeft.appendChild(el("span",{style:{fontSize:"18px",fontWeight:"800",color:"#09090B",letterSpacing:"-0.02em"}},[f.title]));
+      cardHdrTop.appendChild(hdrLeft);
+      if(d.who&&d.why) { const dot=el("div",{style:{width:"8px",height:"8px",borderRadius:"50%",background:f.accent}}); cardHdrTop.appendChild(dot); }
+      cardHdr.appendChild(cardHdrTop);
+      cardHdr.appendChild(el("p",{style:{fontSize:"12px",color:"#71717A",lineHeight:"1.5"}},[f.sub]));
+      card.appendChild(cardHdr);
+      const cardBody=el("div",{style:{padding:"18px 20px 20px",display:"flex",flexDirection:"column",gap:"16px"}});
+      // 친구 선택
+      const whoWrap=el("div");
+      whoWrap.appendChild(el("label",{style:{display:"block",fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}},["추천 친구"]));
+      const whoSel=el("select",{style:{width:"100%",border:"none",borderBottom:`2px solid #E4E4E7`,background:"transparent",padding:"8px 0",fontSize:"16px",color:d.who?"#09090B":"#A1A1AA",outline:"none",appearance:"none",transition:"border-color 0.2s",cursor:"pointer"},onFocus:e=>e.target.style.borderBottomColor=f.accent,onBlur:e=>e.target.style.borderBottomColor="#E4E4E7",onChange:e=>{ const nf={...s.fields}; nf[f.id]={...nf[f.id],who:e.target.value}; setState({fields:nf}); }});
+      whoSel.appendChild(el("option",{value:""},["선택 안 함"]));
+      nominees.forEach(n=>{ const o=el("option",{value:n},[n]); if(n===d.who) o.selected=true; whoSel.appendChild(o); });
+      whoWrap.appendChild(whoSel); cardBody.appendChild(whoWrap);
+      // 이유
+      const whyWrap=el("div");
+      const whyTop=el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}});
+      whyTop.appendChild(el("label",{style:{fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.08em",textTransform:"uppercase"}},["내가 이 친구를 추천하는 이유"]));
+      const cntSpan=el("span",{style:{fontSize:"10px",color:"#A1A1AA"}},[d.why.length>0?`${d.why.length}/${MAX}`:""]);
+      whyTop.appendChild(cntSpan); whyWrap.appendChild(whyTop);
+      const ta=el("textarea",{style:{width:"100%",border:"none",borderBottom:`2px solid #E4E4E7`,background:"transparent",padding:"8px 0",fontSize:"14px",color:"#09090B",outline:"none",resize:"none",lineHeight:"1.6",transition:"border-color 0.2s"},rows:"3",placeholder:f.hint,onFocus:e=>e.target.style.borderBottomColor=f.accent,onBlur:e=>e.target.style.borderBottomColor="#E4E4E7",onInput:e=>{ const v=e.target.value.slice(0,MAX); e.target.value=v; const nf={...s.fields}; nf[f.id]={...nf[f.id],why:v}; setState({fields:nf}); }});
+      ta.value=d.why; whyWrap.appendChild(ta);
+      if(d.why.length>0){
+        const pct=Math.min(100,Math.round(d.why.length/MAX*100));
+        const bar=el("div",{style:{marginTop:"6px",height:"2px",background:"#F4F4F5",borderRadius:"999px"}});
+        const fill=el("div",{style:{height:"100%",width:`${pct}%`,background:pct>90?"#EF4444":f.accent,borderRadius:"999px",transition:"width 0.3s"}});
+        bar.appendChild(fill); whyWrap.appendChild(bar);
+      }
+      cardBody.appendChild(whyWrap); card.appendChild(cardBody); body.appendChild(card);
+    });
+
+    // 버튼
+    const btnWrap=el("div",{style:{display:"flex",flexDirection:"column",gap:"10px",marginTop:"8px"}});
+    const submitBtn=el("button",{style:{width:"100%",padding:"15px",background:"#09090B",color:"#fff",border:"none",borderRadius:"12px",fontWeight:"700",fontSize:"15px",cursor:"pointer",transition:"all 0.2s"},onMouseenter:e=>e.target.style.background="#27272A",onMouseleave:e=>e.target.style.background="#09090B",onClick:doSubmit},["제출하기"]);
+    btnWrap.appendChild(submitBtn); body.appendChild(btnWrap);
+  }
+  page.appendChild(body); return page;
+}
+
+function doSubmit(){
+  const s=state;
+  const filled=FIELDS.filter(f=>s.fields[f.id]?.who||s.fields[f.id]?.why);
+  if(filled.length===0){showAlert("최소 1개 분야를 작성해 주세요.");return;}
+  const noWhy=FIELDS.filter(f=>s.fields[f.id]?.who&&!s.fields[f.id]?.why);
+  if(noWhy.length>0){showAlert(`[${noWhy.map(f=>f.title).join(", ")}]\n추천 이유도 작성해 주세요.`);return;}
+  const ok=saveSub(s.classId,{name:s.name,fields:s.fields});
+  if(ok){ showToast("제출이 완료되었습니다"); setState({name:"",confirmed:false,fields:emptyF()}); }
+  else showAlert("저장에 실패했습니다. 다시 시도해 주세요.");
+}
+
+function showAlert(msg){
+  const overlay=el("div",{style:{position:"fixed",inset:"0",zIndex:"999",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px",background:"rgba(0,0,0,0.3)",backdropFilter:"blur(4px)"}});
+  const box=el("div",{style:{background:"#fff",borderRadius:"20px",padding:"32px 28px",maxWidth:"320px",width:"100%",boxShadow:"0 24px 64px rgba(0,0,0,0.15)"}});
+  const p=el("p",{style:{fontSize:"15px",color:"#3F3F46",lineHeight:"1.6",marginBottom:"24px",whiteSpace:"pre-line"}},[msg]);
+  const btn=el("button",{style:{width:"100%",padding:"14px",background:"#09090B",color:"#fff",border:"none",borderRadius:"12px",fontWeight:"700",fontSize:"15px",cursor:"pointer"},onClick:()=>overlay.remove()},["확인"]);
+  box.appendChild(p); box.appendChild(btn); overlay.appendChild(box); document.body.appendChild(overlay);
+}
+
+// ── 관리자 ────────────────────────────────────────────────────
+function renderAdmin(){
+  const s=state; const cfg=CLASS_CONFIG[s.classId];
+  const subs=loadSubs(s.classId);
+  const tally=Object.fromEntries(FIELDS.map(f=>[f.id,{}]));
+  subs.forEach(sub=>FIELDS.forEach(f=>{ const n=sub.fields[f.id]?.who?.trim(); if(n) tally[f.id][n]=(tally[f.id][n]||0)+1; }));
+  const totalT={};
+  FIELDS.forEach(f=>Object.entries(tally[f.id]).forEach(([n,c])=>{ totalT[n]=(totalT[n]||0)+c; }));
+  const ranking=Object.entries(totalT).sort((a,b)=>b[1]-a[1]);
+  const maxV=Math.max(1,...Object.values(totalT));
+  const notSub=cfg.students.filter(st=>!subs.find(sub=>sub.name===st));
+  const FC={study:"#6366F1",relation:"#0EA5E9",service:"#10B981",character:"#F59E0B"};
+
+  const page=el("div",{style:{minHeight:"100vh",background:"#FAFAFA"}});
+
+  // 초기화 확인 모달
+  if(s.confirmReset){
+    const ov=el("div",{style:{position:"fixed",inset:"0",zIndex:"50",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px",background:"rgba(0,0,0,0.3)",backdropFilter:"blur(4px)"}});
+    const box=el("div",{style:{background:"#fff",borderRadius:"20px",padding:"32px 28px",maxWidth:"320px",width:"100%",boxShadow:"0 24px 64px rgba(0,0,0,0.15)"}});
+    box.appendChild(el("p",{style:{fontSize:"16px",fontWeight:"800",color:"#09090B",marginBottom:"8px",letterSpacing:"-0.02em"}},["데이터를 초기화할까요?"]));
+    box.appendChild(el("p",{style:{fontSize:"14px",color:"#71717A",lineHeight:"1.6",marginBottom:"28px"}},[`${cfg.label}의 전체 추천 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`]));
+    const row=el("div",{style:{display:"flex",gap:"8px"}});
+    row.appendChild(el("button",{style:{flex:"1",padding:"13px",background:"#F4F4F5",color:"#52525B",border:"none",borderRadius:"12px",fontWeight:"600",fontSize:"14px",cursor:"pointer"},onClick:()=>setState({confirmReset:false})},["취소"]));
+    row.appendChild(el("button",{style:{flex:"1",padding:"13px",background:"#EF4444",color:"#fff",border:"none",borderRadius:"12px",fontWeight:"700",fontSize:"14px",cursor:"pointer"},onClick:()=>{ resetSubs(s.classId); setState({confirmReset:false}); }},["초기화"]));
+    box.appendChild(row); ov.appendChild(box); page.appendChild(ov);
+  }
+
+  // 헤더
+  const hdr=el("div",{style:{position:"sticky",top:"0",zIndex:"20",background:"rgba(250,250,250,0.92)",backdropFilter:"blur(12px)",borderBottom:"1px solid #E4E4E7"}});
+  const hdrIn=el("div",{style:{maxWidth:"480px",margin:"0 auto",padding:"0 20px"}});
+  const hdrRow=el("div",{style:{display:"flex",alignItems:"center",height:"52px",gap:"12px"}});
+  hdrRow.appendChild(el("button",{style:{background:"none",border:"none",cursor:"pointer",color:"#09090B",fontSize:"20px",padding:"4px"},onClick:()=>setState({screen:"home"})},["←"]));
+  hdrRow.appendChild(el("span",{style:{fontSize:"13px",fontWeight:"700",color:"#09090B"}},[`${cfg.label} 관리자`]));
+  const dlBtn=el("button",{style:{marginLeft:"auto",fontSize:"12px",fontWeight:"700",color:"#fff",background:"#09090B",border:"none",borderRadius:"8px",padding:"6px 14px",cursor:"pointer"},onClick:()=>downloadXLSX(s.classId)},["엑셀 다운로드"]);
+  const rstBtn=el("button",{style:{fontSize:"12px",fontWeight:"600",color:"#EF4444",background:"transparent",border:"1.5px solid #FECACA",borderRadius:"8px",padding:"6px 12px",cursor:"pointer"},onClick:()=>setState({confirmReset:true})},["초기화"]);
+  hdrRow.appendChild(dlBtn); hdrRow.appendChild(rstBtn); hdrIn.appendChild(hdrRow);
+  const tabs=el("div",{style:{display:"flex",gap:"4px",paddingBottom:"12px"}});
+  [["stats","통계"],["list","제출 목록"]].forEach(([k,l])=>{
+    const t=el("button",{style:{padding:"6px 16px",borderRadius:"8px",fontSize:"13px",fontWeight:"600",border:"none",cursor:"pointer",background:s.adminTab===k?"#09090B":"transparent",color:s.adminTab===k?"#fff":"#A1A1AA",transition:"all 0.2s"},onClick:()=>setState({adminTab:k})},[l]);
+    tabs.appendChild(t);
+  });
+  hdrIn.appendChild(tabs); hdr.appendChild(hdrIn); page.appendChild(hdr);
+
+  const body=el("div",{style:{maxWidth:"480px",margin:"0 auto",padding:"24px 20px 60px"}});
+
+  if(s.adminTab==="stats"){
+    // 제출 현황
+    const statCard=el("div",{style:{background:"#fff",borderRadius:"16px",boxShadow:"0 1px 4px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.05)",overflow:"hidden",marginBottom:"12px"}});
+    const statBanner=el("div",{style:{background:"linear-gradient(135deg,#09090B 0%,#3F3F46 100%)",padding:"20px"}});
+    const statTop=el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}});
+    statTop.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"rgba(255,255,255,0.5)",letterSpacing:"0.1em",textTransform:"uppercase"}},["제출 현황"]));
+    statTop.appendChild(el("span",{style:{fontSize:"28px",fontWeight:"800",color:"#fff",letterSpacing:"-0.03em",lineHeight:"1"}},[ `${subs.length}` + ` / ${cfg.students.length}` ]));
+    statBanner.appendChild(statTop);
+    const bar=el("div",{style:{marginTop:"12px",height:"4px",background:"rgba(255,255,255,0.2)",borderRadius:"999px"}});
+    const fill=el("div",{style:{height:"100%",width:`${(subs.length/cfg.students.length)*100}%`,background:"#fff",borderRadius:"999px"}});
+    bar.appendChild(fill); statBanner.appendChild(bar); statCard.appendChild(statBanner);
+    if(notSub.length>0){
+      const nb=el("div",{style:{padding:"16px 20px"}});
+      nb.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"6px"}},[`미제출 ${notSub.length}명`]));
+      nb.appendChild(el("p",{style:{fontSize:"13px",color:"#71717A",lineHeight:"1.7"}},[notSub.join(" · ")]));
+      statCard.appendChild(nb);
+    }
+    body.appendChild(statCard);
+
+    // 종합 순위
+    const rankCard=el("div",{style:{background:"#fff",borderRadius:"16px",boxShadow:"0 1px 4px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.05)",padding:"20px",marginBottom:"12px"}});
+    rankCard.appendChild(el("p",{style:{fontSize:"13px",fontWeight:"700",color:"#09090B",marginBottom:"4px"}},["종합 추천 순위"]));
+    rankCard.appendChild(el("p",{style:{fontSize:"12px",color:"#A1A1AA",marginBottom:"20px"}},["전체 분야 합산 기준"]));
+    if(ranking.length===0) rankCard.appendChild(el("p",{style:{fontSize:"13px",color:"#A1A1AA"}},["데이터 없음"]));
+    ranking.forEach(([name,total],i)=>{
+      const breakdown=FIELDS.map(f=>({f,cnt:tally[f.id][name]||0})).filter(x=>x.cnt>0);
+      const row=el("div",{style:{display:"flex",alignItems:"center",gap:"12px",marginBottom:"16px"}});
+      row.appendChild(el("span",{style:{fontSize:"13px",fontWeight:"800",color:i===0?"#09090B":"#D4D4D8",width:"20px",textAlign:"right",flexShrink:"0"}},[`${i+1}`]));
+      const right=el("div",{style:{flex:"1"}});
+      const nameRow=el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"5px"}});
+      nameRow.appendChild(el("span",{style:{fontSize:"14px",fontWeight:"600",color:"#09090B"}},[name]));
+      nameRow.appendChild(el("span",{style:{fontSize:"13px",fontWeight:"700",color:"#09090B"}},[`${total}표`]));
+      right.appendChild(nameRow);
+      const barWrap=el("div",{style:{height:"4px",background:"#F4F4F5",borderRadius:"999px",overflow:"hidden",display:"flex",gap:"2px"}});
+      breakdown.forEach(({f,cnt})=>{ const b=el("div",{style:{height:"100%",flex:`${cnt}`,background:`linear-gradient(90deg,${f.accent},${f.accent}CC)`,borderRadius:"999px",minWidth:"4px"}}); barWrap.appendChild(b); });
+      right.appendChild(barWrap);
+      const labels=el("div",{style:{display:"flex",gap:"10px",marginTop:"4px"}});
+      breakdown.forEach(({f,cnt})=>labels.appendChild(el("span",{style:{fontSize:"10px",color:f.accent,fontWeight:"600"}},[`${f.title} ${cnt}`])));
+      right.appendChild(labels); row.appendChild(right); rankCard.appendChild(row);
+    });
+    body.appendChild(rankCard);
+
+    // 분야별
+    FIELDS.forEach(f=>{
+      const entries=Object.entries(tally[f.id]).sort((a,b)=>b[1]-a[1]);
+      const mx=entries[0]?.[1]||1;
+      const card=el("div",{style:{background:"#fff",borderRadius:"16px",boxShadow:"0 1px 4px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.05)",overflow:"hidden",marginBottom:"12px"}});
+      const ch=el("div",{style:{background:`linear-gradient(135deg,${f.accent}22,${f.accent}0A)`,borderBottom:`2px solid ${f.accent}33`,padding:"14px 20px",display:"flex",alignItems:"center",gap:"10px"}});
+      const accent=el("div",{style:{width:"4px",height:"18px",background:`linear-gradient(to bottom,${f.accent},${f.accent}88)`,borderRadius:"2px"}});
+      ch.appendChild(accent); ch.appendChild(el("span",{style:{fontSize:"13px",fontWeight:"700",color:"#09090B"}},[`${f.num} ${f.title}`])); card.appendChild(ch);
+      const cb=el("div",{style:{padding:"16px 20px"}});
+      if(entries.length===0) cb.appendChild(el("p",{style:{fontSize:"13px",color:"#A1A1AA"}},["추천 없음"]));
+      entries.forEach(([name,cnt])=>{
+        const row=el("div",{style:{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}});
+        row.appendChild(el("span",{style:{fontSize:"13px",color:"#3F3F46",width:"56px",textAlign:"right",flexShrink:"0",fontWeight:"500"}},[name]));
+        const bw=el("div",{style:{flex:"1",height:"6px",background:"#F4F4F5",borderRadius:"999px",overflow:"hidden"}});
+        const bf=el("div",{style:{height:"100%",width:`${(cnt/mx)*100}%`,background:`linear-gradient(90deg,${f.accent},${f.accent}AA)`,borderRadius:"999px"}});
+        bw.appendChild(bf); row.appendChild(bw);
+        row.appendChild(el("span",{style:{fontSize:"12px",fontWeight:"700",color:"#09090B",width:"16px",flexShrink:"0"}},[`${cnt}`]));
+        cb.appendChild(row);
+      });
+      card.appendChild(cb); body.appendChild(card);
+    });
+  }
+
+  if(s.adminTab==="list"){
+    if(subs.length===0) body.appendChild(el("p",{style:{color:"#A1A1AA",fontSize:"14px",textAlign:"center",padding:"48px 0"}},["제출된 추천서가 없습니다."]));
+    subs.forEach((sub,i)=>{
+      const card=el("div",{style:{background:"#fff",borderRadius:"16px",boxShadow:"0 1px 4px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.05)",marginBottom:"8px",overflow:"hidden"}});
+      const hd=el("button",{style:{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 20px",background:"none",border:"none",cursor:"pointer"},onClick:()=>setState({adminSel:s.adminSel===i?null:i})});
+      const left=el("div");
+      left.appendChild(el("p",{style:{fontSize:"15px",fontWeight:"600",color:"#09090B",marginBottom:"2px"}},[sub.name]));
+      left.appendChild(el("p",{style:{fontSize:"12px",color:"#A1A1AA"}},[sub.at]));
+      hd.appendChild(left);
+      const arr=el("span",{style:{color:"#A1A1AA",fontSize:"12px",display:"block",transform:s.adminSel===i?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.2s"}},["▼"]);
+      hd.appendChild(arr); card.appendChild(hd);
+      if(s.adminSel===i){
+        const detail=el("div",{style:{borderTop:"1px solid #F4F4F5",padding:"16px 20px",display:"flex",flexDirection:"column",gap:"16px"}});
+        FIELDS.forEach(f=>{ const d=sub.fields[f.id]; if(!d?.who&&!d?.why) return; const dv=el("div",{style:{paddingLeft:"12px",borderLeft:`3px solid ${f.accent}`}}); dv.appendChild(el("p",{style:{fontSize:"11px",fontWeight:"700",color:f.accent,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:"4px"}},[f.title])); dv.appendChild(el("p",{style:{fontSize:"14px",color:"#09090B",fontWeight:"600",marginBottom:"4px"}},[d.who||"—"])); dv.appendChild(el("p",{style:{fontSize:"13px",color:"#71717A",lineHeight:"1.5"}},[d.why||"—"])); detail.appendChild(dv); });
+        card.appendChild(detail);
+      }
+      body.appendChild(card);
+    });
+  }
+
+  page.appendChild(body); return page;
+}
+
+render();
+</script>
+</body>
+</html>
