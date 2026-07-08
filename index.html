@@ -168,8 +168,10 @@ function renderStudent(){
   const hdrIn=el("div",{style:{display:"flex",alignItems:"center",maxWidth:"480px",margin:"0 auto",height:"52px",padding:"0 20px",gap:"16px"}});
   hdrIn.appendChild(el("button",{style:{background:"none",border:"none",cursor:"pointer",color:"#09090B",fontSize:"20px",padding:"4px"},onClick:()=>setState({screen:"home",name:"",confirmed:false,fields:emptyF()})},["←"]));
   hdrIn.appendChild(el("span",{style:{fontSize:"13px",fontWeight:"700",color:"#09090B"}},[cfg.label]));
+  const filledSpan=el("span",{style:{marginLeft:"auto",fontSize:"12px",color:"#A1A1AA"}});
   const filled=FIELDS.filter(f=>s.fields[f.id]?.who||s.fields[f.id]?.why).length;
-  if(s.confirmed&&filled>0) hdrIn.appendChild(el("span",{style:{marginLeft:"auto",fontSize:"12px",color:"#A1A1AA"}},[`${filled}/4 작성 완료`]));
+  if(s.confirmed&&filled>0) filledSpan.textContent=`${filled}/4 작성 완료`;
+  hdrIn.appendChild(filledSpan);
   hdr.appendChild(hdrIn); page.appendChild(hdr);
 
   const body=el("div",{style:{maxWidth:"480px",margin:"0 auto",padding:"32px 20px 72px"}});
@@ -190,23 +192,26 @@ function renderStudent(){
   writerBanner.appendChild(el("p",{style:{fontSize:"13px",color:"rgba(255,255,255,0.7)"}},["본인의 이름을 선택해 주세요"]));
   writerCard.appendChild(writerBanner);
   const writerBody=el("div",{style:{padding:"18px 20px"}});
-  const sel=el("select",{style:{width:"100%",border:"none",borderBottom:"2px solid #E4E4E7",background:"transparent",padding:"8px 0",fontSize:"16px",color:s.name?"#09090B":"#A1A1AA",outline:"none",appearance:"none",transition:"border-color 0.2s",marginBottom:"16px"},onFocus:e=>e.target.style.borderBottomColor="#09090B",onBlur:e=>e.target.style.borderBottomColor="#E4E4E7",onChange:e=>setState({name:e.target.value,confirmed:false,fields:emptyF()})});
-  if(s.confirmed) sel.disabled=true;
-  sel.appendChild(el("option",{value:""},["이름을 선택하세요"]));
-  cfg.students.forEach(st=>{ const o=el("option",{value:st},[st]); if(st===s.name) o.selected=true; sel.appendChild(o); });
-  writerBody.appendChild(sel);
+  const nameSel=el("select",{style:{width:"100%",border:"none",borderBottom:"2px solid #E4E4E7",background:"transparent",padding:"8px 0",fontSize:"16px",color:s.name?"#09090B":"#A1A1AA",outline:"none",appearance:"none",transition:"border-color 0.2s",marginBottom:"16px"}});
+  if(s.confirmed) nameSel.disabled=true;
+  nameSel.addEventListener("focus",e=>e.target.style.borderBottomColor="#09090B");
+  nameSel.addEventListener("blur",e=>e.target.style.borderBottomColor="#E4E4E7");
+  nameSel.addEventListener("change",e=>{ state.name=e.target.value; state.confirmed=false; state.fields=emptyF(); render(); });
+  nameSel.appendChild(el("option",{value:""},["이름을 선택하세요"]));
+  cfg.students.forEach(st=>{ const o=document.createElement("option"); o.value=st; o.textContent=st; if(st===s.name) o.selected=true; nameSel.appendChild(o); });
+  writerBody.appendChild(nameSel);
   if(!s.confirmed){
-    const confirmBtn=el("button",{style:{width:"100%",padding:"14px",background:"#09090B",color:"#fff",border:"none",borderRadius:"12px",fontWeight:"700",fontSize:"15px",cursor:"pointer"},onMouseenter:e=>e.target.style.background="#27272A",onMouseleave:e=>e.target.style.background="#09090B",onClick:()=>{ if(!s.name){showAlert("작성자 이름을 선택해 주세요.");return;} setState({confirmed:true}); }},["확인"]);
+    const confirmBtn=el("button",{style:{width:"100%",padding:"14px",background:"#09090B",color:"#fff",border:"none",borderRadius:"12px",fontWeight:"700",fontSize:"15px",cursor:"pointer"},onClick:()=>{ if(!state.name){showAlert("작성자 이름을 선택해 주세요.");return;} state.confirmed=true; render(); }},["확인"]);
     writerBody.appendChild(confirmBtn);
   } else {
     const row=el("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"#F4F4F5",borderRadius:"10px"}});
     row.appendChild(el("span",{style:{fontSize:"14px",color:"#09090B",fontWeight:"600"}},[`${s.name} 학생으로 작성 중`]));
-    row.appendChild(el("button",{style:{background:"none",border:"none",cursor:"pointer",fontSize:"12px",color:"#A1A1AA",textDecoration:"underline"},onClick:()=>setState({confirmed:false,fields:emptyF()})},["변경"]));
+    row.appendChild(el("button",{style:{background:"none",border:"none",cursor:"pointer",fontSize:"12px",color:"#A1A1AA",textDecoration:"underline"},onClick:()=>{ state.confirmed=false; state.fields=emptyF(); render(); }},["변경"]));
     writerBody.appendChild(row);
   }
   writerCard.appendChild(writerBody); body.appendChild(writerCard);
 
-  // 분야 카드들
+  // 분야 카드들 — 입력값 변경 시 render() 호출 없이 직접 state만 업데이트
   if(s.confirmed){
     FIELDS.forEach(f=>{
       const d=s.fields[f.id]||{who:"",why:""};
@@ -217,36 +222,46 @@ function renderStudent(){
       hdrLeft.appendChild(el("span",{style:{fontSize:"11px",fontWeight:"800",color:f.accent,letterSpacing:"0.12em"}},[f.num]));
       hdrLeft.appendChild(el("span",{style:{fontSize:"18px",fontWeight:"800",color:"#09090B",letterSpacing:"-0.02em"}},[f.title]));
       cardHdrTop.appendChild(hdrLeft);
-      if(d.who&&d.why) { const dot=el("div",{style:{width:"8px",height:"8px",borderRadius:"50%",background:f.accent}}); cardHdrTop.appendChild(dot); }
       cardHdr.appendChild(cardHdrTop);
       cardHdr.appendChild(el("p",{style:{fontSize:"12px",color:"#71717A",lineHeight:"1.5"}},[f.sub]));
       card.appendChild(cardHdr);
+
       const cardBody=el("div",{style:{padding:"18px 20px 20px",display:"flex",flexDirection:"column",gap:"16px"}});
-      // 친구 선택
+
+      // 친구 선택 — render() 없이 state만 수정
       const whoWrap=el("div");
       whoWrap.appendChild(el("label",{style:{display:"block",fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}},["추천 친구"]));
-      const whoSel=el("select",{style:{width:"100%",border:"none",borderBottom:`2px solid #E4E4E7`,background:"transparent",padding:"8px 0",fontSize:"16px",color:d.who?"#09090B":"#A1A1AA",outline:"none",appearance:"none",transition:"border-color 0.2s",cursor:"pointer"},onFocus:e=>e.target.style.borderBottomColor=f.accent,onBlur:e=>e.target.style.borderBottomColor="#E4E4E7",onChange:e=>{ const nf={...s.fields}; nf[f.id]={...nf[f.id],who:e.target.value}; setState({fields:nf}); }});
-      whoSel.appendChild(el("option",{value:""},["선택 안 함"]));
-      nominees.forEach(n=>{ const o=el("option",{value:n},[n]); if(n===d.who) o.selected=true; whoSel.appendChild(o); });
+      const whoSel=document.createElement("select");
+      Object.assign(whoSel.style,{width:"100%",border:"none",borderBottom:`2px solid #E4E4E7`,background:"transparent",padding:"8px 0",fontSize:"16px",color:d.who?"#09090B":"#A1A1AA",outline:"none",appearance:"none",transition:"border-color 0.2s",cursor:"pointer",boxSizing:"border-box"});
+      whoSel.addEventListener("focus",e=>e.target.style.borderBottomColor=f.accent);
+      whoSel.addEventListener("blur",e=>e.target.style.borderBottomColor="#E4E4E7");
+      whoSel.addEventListener("change",e=>{ state.fields[f.id].who=e.target.value; });
+      const defOpt=document.createElement("option"); defOpt.value=""; defOpt.textContent="선택 안 함"; whoSel.appendChild(defOpt);
+      nominees.forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; if(n===d.who) o.selected=true; whoSel.appendChild(o); });
       whoWrap.appendChild(whoSel); cardBody.appendChild(whoWrap);
-      // 이유
+
+      // 이유 — render() 없이 state만 수정
       const whyWrap=el("div");
       const whyTop=el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}});
       whyTop.appendChild(el("label",{style:{fontSize:"11px",fontWeight:"700",color:"#A1A1AA",letterSpacing:"0.08em",textTransform:"uppercase"}},["내가 이 친구를 추천하는 이유"]));
       const cntSpan=el("span",{style:{fontSize:"10px",color:"#A1A1AA"}},[d.why.length>0?`${d.why.length}/${MAX}`:""]);
       whyTop.appendChild(cntSpan); whyWrap.appendChild(whyTop);
-      const ta=el("textarea",{style:{width:"100%",border:"none",borderBottom:`2px solid #E4E4E7`,background:"transparent",padding:"8px 0",fontSize:"14px",color:"#09090B",outline:"none",resize:"none",lineHeight:"1.6",transition:"border-color 0.2s"},rows:"3",placeholder:f.hint,onFocus:e=>e.target.style.borderBottomColor=f.accent,onBlur:e=>e.target.style.borderBottomColor="#E4E4E7",onInput:e=>{ const v=e.target.value.slice(0,MAX); e.target.value=v; const nf={...s.fields}; nf[f.id]={...nf[f.id],why:v}; setState({fields:nf}); }});
-      ta.value=d.why; whyWrap.appendChild(ta);
-      if(d.why.length>0){
-        const pct=Math.min(100,Math.round(d.why.length/MAX*100));
-        const bar=el("div",{style:{marginTop:"6px",height:"2px",background:"#F4F4F5",borderRadius:"999px"}});
-        const fill=el("div",{style:{height:"100%",width:`${pct}%`,background:pct>90?"#EF4444":f.accent,borderRadius:"999px",transition:"width 0.3s"}});
-        bar.appendChild(fill); whyWrap.appendChild(bar);
-      }
-      cardBody.appendChild(whyWrap); card.appendChild(cardBody); body.appendChild(card);
+      const ta=document.createElement("textarea");
+      Object.assign(ta.style,{width:"100%",border:"none",borderBottom:`2px solid #E4E4E7`,background:"transparent",padding:"8px 0",fontSize:"14px",color:"#09090B",outline:"none",resize:"none",lineHeight:"1.6",transition:"border-color 0.2s",fontFamily:"inherit",boxSizing:"border-box"});
+      ta.rows=3; ta.placeholder=f.hint; ta.value=d.why;
+      ta.addEventListener("focus",e=>e.target.style.borderBottomColor=f.accent);
+      ta.addEventListener("blur",e=>e.target.style.borderBottomColor="#E4E4E7");
+      ta.addEventListener("input",e=>{
+        const v=e.target.value.slice(0,MAX);
+        if(e.target.value.length>MAX) e.target.value=v;
+        state.fields[f.id].why=v;
+        cntSpan.textContent=`${v.length}/${MAX}`;
+      });
+      whyWrap.appendChild(ta); cardBody.appendChild(whyWrap);
+      card.appendChild(cardBody); body.appendChild(card);
     });
 
-    // 버튼
+    // 제출 버튼
     const btnWrap=el("div",{style:{display:"flex",flexDirection:"column",gap:"10px",marginTop:"8px"}});
     const submitBtn=el("button",{style:{width:"100%",padding:"15px",background:"#09090B",color:"#fff",border:"none",borderRadius:"12px",fontWeight:"700",fontSize:"15px",cursor:"pointer",transition:"all 0.2s"},onMouseenter:e=>e.target.style.background="#27272A",onMouseleave:e=>e.target.style.background="#09090B",onClick:doSubmit},["제출하기"]);
     btnWrap.appendChild(submitBtn); body.appendChild(btnWrap);
